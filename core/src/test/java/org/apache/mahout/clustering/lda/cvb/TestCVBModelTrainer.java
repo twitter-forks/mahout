@@ -186,7 +186,7 @@ public class TestCVBModelTrainer extends MahoutTestCase {
       int expectedTopicForTerm = expectedTopicForTerm(matrix, term);
       System.out.println("Expecting that term " + term + " was from topic " + expectedTopicForTerm
                          + " we got: " + topic);
-     // assertEquals(expectedTopicForTerm, topic);
+      assertEquals(expectedTopicForTerm, topic);
     }
   }
 
