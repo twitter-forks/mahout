@@ -188,7 +188,8 @@ public class CVB0Driver extends AbstractJob {
                  ? Integer.parseInt(getOption(NUM_TERMS))
                  : getNumTerms(getConf(), dictionaryPath);
     Path docTopicPriorPath = hasOption(DOC_TOPIC_PRIOR) ? new Path(getOption(DOC_TOPIC_PRIOR)) : null;
-    boolean persistDocTopics = hasOption(PERSIST_INTERMEDIATE_DOCTOPICS);
+    boolean persistDocTopics = hasOption(PERSIST_INTERMEDIATE_DOCTOPICS)
+            && getOption(PERSIST_INTERMEDIATE_DOCTOPICS).equalsIgnoreCase("true");
     Path docTopicOutputPath = hasOption(DOC_TOPIC_OUTPUT) ? new Path(getOption(DOC_TOPIC_OUTPUT)) : null;
     Path modelTempPath = hasOption(MODEL_TEMP_DIR)
                        ? new Path(getOption(MODEL_TEMP_DIR))
