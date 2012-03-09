@@ -72,12 +72,12 @@ public final class ClusteringTestUtils {
       int numDocs, int numSamples, int numTopicsPerDoc) {
     Matrix corpus = new SparseRowMatrix(numDocs, matrix.numCols());
     LDASampler modelSampler = new LDASampler(matrix, random);
-    Vector topicVector = new DenseVector(matrix.numRows());
-    for(int i = 0; i < numTopicsPerDoc; i++) {
-      int topic = random.nextInt(topicVector.size());
-      topicVector.set(topic, topicVector.get(topic) + 1);
-    }
     for(int docId = 0; docId < numDocs; docId++) {
+      Vector topicVector = new DenseVector(matrix.numRows());
+      for(int i = 0; i < numTopicsPerDoc; i++) {
+        int topic = random.nextInt(topicVector.size());
+        topicVector.set(topic, topicVector.get(topic) + 1);
+      }
       for(int sample : modelSampler.sample(topicVector, numSamples)) {
         corpus.set(docId, sample, corpus.get(docId, sample) + 1);
       }

@@ -270,8 +270,8 @@ public class TopicModel implements Configurable, Iterable<MatrixSlice> {
     // now multiply, term-by-term, by the document, to get the weighted distribution of
     // term-topic pairs from this document.
     Iterator<Vector.Element> it = original.iterateNonZero();
-    while(it.hasNext()) {
-      Vector.Element e = it.next();
+    Vector.Element e = null;
+    while(it.hasNext() && (e = it.next())!= null && e.index() < numTerms) { // protect vs. big docs
       for(int x = 0; x < numTopics; x++) {
         Vector docTopicModelRow = docTopicModel.viewRow(x);
         docTopicModelRow.setQuick(e.index(), docTopicModelRow.getQuick(e.index()) * e.get());
@@ -353,8 +353,8 @@ public class TopicModel implements Configurable, Iterable<MatrixSlice> {
 
       // for each term a in document i with non-zero weight
       Iterator<Vector.Element> it = document.iterateNonZero();
-      while(it.hasNext()) {
-        Vector.Element e = it.next();
+      Vector.Element e = null;
+      while(it.hasNext() && (e = it.next()) != null && e.index() < numTerms) {
         int termIndex = e.index();
 
         // calc un-normalized p(topic x | term a, document i)
@@ -371,8 +371,8 @@ public class TopicModel implements Configurable, Iterable<MatrixSlice> {
     double perplexity = 0;
     double norm = docTopics.norm(1) + (docTopics.size() * alpha);
     Iterator<Vector.Element> it = document.iterateNonZero();
-    while(it.hasNext()) {
-      Vector.Element e = it.next();
+    Vector.Element e = null;
+    while(it.hasNext() && (e = it.next()) != null && e.index() < numTerms) {
       int term = e.index();
       double prob = 0;
       for(int x = 0; x < numTopics; x++) {
