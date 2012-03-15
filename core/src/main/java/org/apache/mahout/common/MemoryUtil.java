@@ -28,7 +28,6 @@ import org.slf4j.LoggerFactory;
  * Memory utilities.
  */
 public final class MemoryUtil {
-
   private static final Logger log = LoggerFactory.getLogger(MemoryUtil.class);
 
   private MemoryUtil() {
@@ -68,13 +67,13 @@ public final class MemoryUtil {
         return t;
       }
     });
-    Runnable memoryLoogerRunnable = new Runnable() {
+    Runnable memoryLoggerRunnable = new Runnable() {
       @Override
       public void run() {
         logMemoryStatistics();
       }
     };
-    scheduler.scheduleAtFixedRate(memoryLoogerRunnable, rateInMillis, rateInMillis,
+    scheduler.scheduleAtFixedRate(memoryLoggerRunnable, rateInMillis, rateInMillis,
         TimeUnit.MILLISECONDS);
   }
 
@@ -95,5 +94,4 @@ public final class MemoryUtil {
       scheduler = null;
     }
   }
-
 }
