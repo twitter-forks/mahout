@@ -59,17 +59,17 @@ public class CVB0PriorMapper extends MapReduceBase implements
   public void configure(org.apache.hadoop.mapred.JobConf conf) {
     try {
     multipleOutputs = new MultipleOutputs(conf);
-
-    double eta = conf.getFloat(CVB0Driver.TERM_TOPIC_SMOOTHING, Float.NaN);
-    double alpha = conf.getFloat(CVB0Driver.DOC_TOPIC_SMOOTHING, Float.NaN);
-    long seed = conf.getLong(CVB0Driver.RANDOM_SEED, 1234L);
+    CVBConfig c = new CVBConfig().read(conf);
+    double eta = c.getEta();
+    double alpha = c.getAlpha();
+    long seed = c.getRandomSeed();
     random = RandomUtils.getRandom(seed);
-    numTopics = conf.getInt(CVB0Driver.NUM_TOPICS, -1);
-    int numTerms = conf.getInt(CVB0Driver.NUM_TERMS, -1);
-    int numUpdateThreads = conf.getInt(CVB0Driver.NUM_UPDATE_THREADS, 1);
-    int numTrainThreads = conf.getInt(CVB0Driver.NUM_TRAIN_THREADS, 4);
-    double modelWeight = conf.getFloat(CVB0Driver.MODEL_WEIGHT, 1f);
-    testFraction = conf.getFloat(CVB0Driver.TEST_SET_FRACTION, 0.1f);
+    numTopics = c.getNumTopics();
+    int numTerms = c.getNumTerms();
+    int numUpdateThreads = c.getNumUpdateThreads();
+    int numTrainThreads = c.getNumTrainThreads();
+    double modelWeight = c.getModelWeight();
+    testFraction = c.getTestFraction();
     log.info("Initializing read model");
     TopicModel readModel;
     Path[] modelPaths = CVB0Driver.getModelPaths(conf);
