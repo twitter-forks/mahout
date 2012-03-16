@@ -20,6 +20,7 @@ core/testdata/
 core/temp
 temp
 distribution/.settings/
+distribution/target/
 examples/.settings/
 foo
 math-tests/

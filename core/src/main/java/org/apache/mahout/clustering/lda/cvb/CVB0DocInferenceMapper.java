@@ -22,19 +22,19 @@ import org.apache.mahout.math.Matrix;
 import org.apache.mahout.math.SparseRowMatrix;
 import org.apache.mahout.math.Vector;
 import org.apache.mahout.math.VectorWritable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 
 public class CVB0DocInferenceMapper extends CachingCVB0Mapper {
+  private static final Logger log = LoggerFactory.getLogger(CVB0DocInferenceMapper.class);
 
   @Override
   public void map(IntWritable docId, VectorWritable doc, Context context)
       throws IOException, InterruptedException {
-    int numTopics = getNumTopics();
-    Vector docTopics = new DenseVector(new double[numTopics]).assign(1.0 /numTopics);
+    Vector docTopics = new DenseVector(new double[numTopics]).assign(1.0 / numTopics);
     Matrix docModel = new SparseRowMatrix(numTopics, doc.get().size());
-    int maxIters = getMaxIters();
-    ModelTrainer modelTrainer = getModelTrainer();
     for(int i = 0; i < maxIters; i++) {
       modelTrainer.getReadModel().trainDocTopicModel(doc.get(), docTopics, docModel);
     }
@@ -43,6 +43,7 @@ public class CVB0DocInferenceMapper extends CachingCVB0Mapper {
 
   @Override
   protected void cleanup(Context context) {
-    getModelTrainer().stop();
+    log.info("Stopping model trainer");
+    modelTrainer.stop();
   }
 }
