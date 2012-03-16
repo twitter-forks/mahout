@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.Random;
 
 /**
  * Run ensemble learning via loading the {@link ModelTrainer} with two {@link TopicModel} instances:
@@ -54,38 +55,29 @@ import java.io.IOException;
  */
 public class CachingCVB0Mapper
     extends Mapper<IntWritable, VectorWritable, IntWritable, VectorWritable> {
-
   private static final Logger log = LoggerFactory.getLogger(CachingCVB0Mapper.class);
-
-  private ModelTrainer modelTrainer;
-  private int maxIters;
-  private int numTopics;
-  
-  protected ModelTrainer getModelTrainer() {
-    return modelTrainer;
-  }
-  
-  protected int getMaxIters() {
-    return maxIters;
-  }
-  
-  protected int getNumTopics() {
-    return numTopics;
-  }
+  protected ModelTrainer modelTrainer;
+  protected int maxIters;
+  protected int numTopics;
+  protected float testFraction;
+  protected Random random;
 
   @Override
   protected void setup(Context context) throws IOException, InterruptedException {
     log.info("Retrieving configuration");
     Configuration conf = context.getConfiguration();
-    float eta = conf.getFloat(CVB0Driver.TERM_TOPIC_SMOOTHING, Float.NaN);
-    float alpha = conf.getFloat(CVB0Driver.DOC_TOPIC_SMOOTHING, Float.NaN);
-    long seed = conf.getLong(CVB0Driver.RANDOM_SEED, 1234L);
-    numTopics = conf.getInt(CVB0Driver.NUM_TOPICS, -1);
-    int numTerms = conf.getInt(CVB0Driver.NUM_TERMS, -1);
-    int numUpdateThreads = conf.getInt(CVB0Driver.NUM_UPDATE_THREADS, 1);
-    int numTrainThreads = conf.getInt(CVB0Driver.NUM_TRAIN_THREADS, 4);
-    maxIters = conf.getInt(CVB0Driver.MAX_ITERATIONS_PER_DOC, 10);
-    float modelWeight = conf.getFloat(CVB0Driver.MODEL_WEIGHT, 1.0f);
+    CVBConfig config = new CVBConfig().read(conf);
+    float eta = config.getEta();
+    float alpha = config.getAlpha();
+    long seed = config.getRandomSeed();
+    numTopics = config.getNumTopics();
+    int numTerms = config.getNumTerms();
+    int numUpdateThreads = config.getNumUpdateThreads();
+    int numTrainThreads = config.getNumTrainThreads();
+    maxIters = config.getMaxItersPerDoc();
+    float modelWeight = config.getModelWeight();
+    testFraction = config.getTestFraction();
+    random = RandomUtils.getRandom(seed);
 
     log.info("Initializing read model");
     TopicModel readModel;
@@ -112,7 +104,12 @@ public class CachingCVB0Mapper
   public void map(IntWritable docId, VectorWritable document, Context context)
       throws IOException, InterruptedException{
     /* where to get docTopics? */
-    Vector topicVector = new DenseVector(new double[numTopics]).assign(1.0/numTopics);
+    if (0 < testFraction && random.nextFloat() < testFraction) {
+      // don't train on test doc
+      return;
+    }
+    context.getCounter(CVB0Driver.Counters.SAMPLED_DOCUMENTS).increment(1);
+    Vector topicVector = new DenseVector(new double[numTopics]).assign(1.0 / numTopics);
     modelTrainer.train(document.get(), topicVector, true, maxIters);
   }
 

@@ -41,8 +41,8 @@ import java.util.List;
 
 public class TestCVBModelTrainer extends MahoutTestCase {
 
-  private static final double ETA = 0.1;
-  private static final double ALPHA = 0.1;
+  private static final float ETA = 0.1f;
+  private static final float ALPHA = 0.1f;
 
   private String[] terms;
   private Matrix matrix;
