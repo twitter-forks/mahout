@@ -309,7 +309,11 @@ public class TopicModel implements Configurable, Iterable<MatrixSlice> {
   }
 
   public void updateTopic(int topic, Vector docTopicCounts) {
-    topicTermCounts.viewRow(topic).assign(docTopicCounts, Functions.PLUS);
+    Iterator<Vector.Element> it = docTopicCounts.iterateNonZero();
+    while(it.hasNext()) {
+      Vector.Element e = it.next();
+      topicTermCounts.set(topic, e.index(), topicTermCounts.get(topic, e.index()) + e.get());
+    }
     topicSums.set(topic, topicSums.get(topic) + docTopicCounts.norm(1));
   }
 
