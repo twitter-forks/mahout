@@ -280,7 +280,12 @@ public class TopicModel implements Configurable, Iterable<MatrixSlice> {
     // now recalculate p(topic|doc) by summing contributions from all of pTopicGivenTerm
     topics.assign(0.0);
     for(int x = 0; x < numTopics; x++) {
-      topics.set(x, docTopicModel.viewRow(x).norm(1));
+      it = original.iterateNonZero();
+      double norm = 0;
+      while(it.hasNext() && (e = it.next())!= null && e.index() < numTerms) {
+        norm += docTopicModel.get(x, e.index());
+      }
+      topics.set(x, norm);
     }
     // now renormalize so that sum_x(p(x|doc)) = 1
     topics.assign(Functions.mult(1/topics.norm(1)));
