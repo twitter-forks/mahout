@@ -266,7 +266,7 @@ public class TopicModel implements Configurable, Iterable<MatrixSlice> {
     // first calculate p(topic|term,document) for all terms in original, and all topics,
     // using p(term|topic) and p(topic|doc)
     pTopicGivenTerm(original, topics, docTopicModel);
-    normalizeByTopic(docTopicModel);
+    normalizeByTopic(original, docTopicModel);
     // now multiply, term-by-term, by the document, to get the weighted distribution of
     // term-topic pairs from this document.
     Iterator<Vector.Element> it = original.iterateNonZero();
@@ -390,19 +390,23 @@ public class TopicModel implements Configurable, Iterable<MatrixSlice> {
     return -perplexity;
   }
 
-  private void normalizeByTopic(Matrix perTopicSparseDistributions) {
-    Iterator<Vector.Element> it = perTopicSparseDistributions.viewRow(0).iterateNonZero();
+  /**
+   *
+   * @param doc just here to provide a sparse iterator
+   * @param perTopicSparseDistributions
+   */
+  private void normalizeByTopic(Vector doc, Matrix perTopicSparseDistributions) {
+    Iterator<Vector.Element> it = doc.iterateNonZero();
     // then make sure that each of these is properly normalized by topic: sum_x(p(x|t,d)) = 1
     while(it.hasNext()) {
       Vector.Element e = it.next();
       int a = e.index();
       double sum = 0;
       for(int x = 0; x < numTopics; x++) {
-        sum += perTopicSparseDistributions.viewRow(x).get(a);
+        sum += perTopicSparseDistributions.get(x, a);
       }
       for(int x = 0; x < numTopics; x++) {
-        perTopicSparseDistributions.viewRow(x).set(a,
-            perTopicSparseDistributions.viewRow(x).get(a) / sum);
+        perTopicSparseDistributions.set(x, a, perTopicSparseDistributions.get(x, a) / sum);
       }
     }
   }
