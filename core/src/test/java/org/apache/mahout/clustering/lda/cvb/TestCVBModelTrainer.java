@@ -142,6 +142,39 @@ public class TestCVBModelTrainer extends MahoutTestCase {
     System.out.println("Perplexities: " + Joiner.on(", ").join(perplexities));
   }
 
+
+  @Test
+  public void testRandomStructuredModelWithDocTopicPriorPersistence() throws Exception {
+    int numIterations = 20;
+    List<Double> perplexities = Lists.newArrayList();
+    int startTopic = numGeneratingTopics - 1;
+    int numTestTopics = startTopic;
+    while(numTestTopics < numGeneratingTopics + 2) {
+      Path topicModelStateTempPath = getTestTempDirPath("topicTemp" + numTestTopics);
+      Configuration conf = new Configuration();
+      CVBConfig cvbConfig = new CVBConfig().setAlpha(ALPHA).setEta(ETA).setNumTopics(numTestTopics)
+                                .setBackfillPerplexity(false).setConvergenceDelta(0).setDictionaryPath(null)
+                                .setModelTempPath(topicModelStateTempPath).setTestFraction(0.2f).setNumTerms(numTerms)
+                                .setMaxIterations(numIterations).setInputPath(sampleCorpusPath).setNumTrainThreads(1)
+                                .setNumUpdateThreads(1).setIterationBlockSize(1).setPersistDocTopics(true);
+      CVB0Driver.run(conf, cvbConfig);
+      perplexities.add(lowestPerplexity(conf, topicModelStateTempPath));
+      numTestTopics++;
+    }
+    int bestTopic = -1;
+    double lowestPerplexity = Double.MAX_VALUE;
+    for(int t = 0; t < perplexities.size(); t++) {
+      if(perplexities.get(t) < lowestPerplexity) {
+        lowestPerplexity = perplexities.get(t);
+        bestTopic = t + startTopic;
+      }
+    }
+    assertEquals("The optimal number of topics is not that of the generating distribution",
+                    numGeneratingTopics, bestTopic);
+    System.out.println("Perplexities: " + Joiner.on(", ").join(perplexities));
+  }
+
+
   @Test
   public void testPriorDocTopics() throws Exception {
     sampledCorpus.numRows();
