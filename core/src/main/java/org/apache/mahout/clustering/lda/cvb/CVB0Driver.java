@@ -114,13 +114,16 @@ public class CVB0Driver extends AbstractJob {
    * Hadoop counters for various CVB0 jobs to aid in debugging.
    */
   public enum Counters {
+    /**
+     * Number of documents sampled from input set.
+     *
+     * @see CachingCVB0Mapper
+     * @see CachingCVB0PerplexityMapper
+     */
     SAMPLED_DOCUMENTS
   }
 
   private static final Logger log = LoggerFactory.getLogger(CVB0Driver.class);
-  public static final String DICTIONARY = "dictionary";
-  public static final String DOC_TOPIC_OUTPUT = "doc_topic_output";
-  public static final String MODEL_TEMP_DIR = "topic_model_temp_dir";
   private static final String MODEL_PATHS = "mahout.lda.cvb.modelPath";
 
   @Override
@@ -135,16 +138,16 @@ public class CVB0Driver extends AbstractJob {
     addOption(CVBConfig.NUM_TERMS_PARAM, "nt", "Vocabulary size", false);
     addOption(CVBConfig.DOC_TOPIC_SMOOTHING_PARAM, "a", "Smoothing for document/topic distribution", String.valueOf(CVBConfig.DOC_TOPIC_SMOOTHING_DEFAULT));
     addOption(CVBConfig.TERM_TOPIC_SMOOTHING_PARAM, "e", "Smoothing for topic/term distribution", String.valueOf(CVBConfig.TERM_TOPIC_SMOOTHING_DEFAULT));
-    addOption(DICTIONARY, "dict", "Path to term-dictionary file(s) (glob expression supported)", false);
-    addOption(DOC_TOPIC_OUTPUT, "dt", "Output path for the training doc/topic distribution", false);
-    addOption(MODEL_TEMP_DIR, "mt", "Path to intermediate model path (useful for restarting)", false);
+    addOption(CVBConfig.DICTIONARY_PATH_PARAM, "dict", "Path to term-dictionary file(s) (glob expression supported)", false);
+    addOption(CVBConfig.DOC_TOPIC_OUTPUT_PATH_PARAM, "dt", "Output path for the training doc/topic distribution", false);
+    addOption(CVBConfig.MODEL_TEMP_PATH_PARAM, "mt", "Path to intermediate model path (useful for restarting)", false);
     addOption(CVBConfig.ITERATION_BLOCK_SIZE_PARAM, "block", "Number of iterations per perplexity check", String.valueOf(CVBConfig.ITERATION_BLOCK_SIZE_DEFAULT));
     addOption(CVBConfig.RANDOM_SEED_PARAM, "seed", "Random seed", String.valueOf(CVBConfig.RANDOM_SEED_DEFAULT));
     addOption(CVBConfig.TEST_SET_FRACTION_PARAM, "tf", "Fraction of data to hold out for testing", String.valueOf(CVBConfig.TEST_SET_FRACTION_DEFAULT));
     addOption(CVBConfig.NUM_TRAIN_THREADS_PARAM, "ntt", "number of threads per mapper to train with", String.valueOf(CVBConfig.NUM_TRAIN_THREADS_DEFAULT));
     addOption(CVBConfig.NUM_UPDATE_THREADS_PARAM, "nut", "number of threads per mapper to update the model with", String.valueOf(CVBConfig.NUM_UPDATE_THREADS_DEFAULT));
     addOption(CVBConfig.PERSIST_INTERMEDIATE_DOCTOPICS_PARAM, "pidt", "persist and update intermediate p(topic|doc)", "false");
-    addOption(CVBConfig.DOC_TOPIC_PRIOR_PARAM, "dtp", "path to prior values of p(topic|doc) matrix");
+    addOption(CVBConfig.DOC_TOPIC_PRIOR_PATH_PARAM, "dtp", "path to prior values of p(topic|doc) matrix");
     addOption(CVBConfig.MAX_ITERATIONS_PER_DOC_PARAM, "mipd", "max number of iterations per doc for p(topic|doc) learning", String.valueOf(CVBConfig.MAX_ITERATIONS_PER_DOC_DEFAULT));
     addOption(CVBConfig.NUM_REDUCE_TASKS_PARAM, null, "number of reducers to use during model estimation", String.valueOf(CVBConfig.NUM_REDUCE_TASKS_DEFAULT));
     addOption(CVBConfig.ONLY_LABELED_DOCS_PARAM, "ol", "only use docs with non-null doc/topic priors", "false");
@@ -165,16 +168,16 @@ public class CVB0Driver extends AbstractJob {
     int numTrainThreads = Integer.parseInt(getOption(CVBConfig.NUM_TRAIN_THREADS_PARAM));
     int numUpdateThreads = Integer.parseInt(getOption(CVBConfig.NUM_UPDATE_THREADS_PARAM));
     int maxItersPerDoc = Integer.parseInt(getOption(CVBConfig.MAX_ITERATIONS_PER_DOC_PARAM));
-    Path dictionaryPath = hasOption(DICTIONARY) ? new Path(getOption(DICTIONARY)) : null;
+    Path dictionaryPath = hasOption(CVBConfig.DICTIONARY_PATH_PARAM) ? new Path(getOption(CVBConfig.DICTIONARY_PATH_PARAM)) : null;
     int numTerms = hasOption(CVBConfig.NUM_TERMS_PARAM)
                  ? Integer.parseInt(getOption(CVBConfig.NUM_TERMS_PARAM))
                  : getNumTerms(getConf(), dictionaryPath);
-    Path docTopicPriorPath = hasOption(CVBConfig.DOC_TOPIC_PRIOR_PARAM) ? new Path(getOption(CVBConfig.DOC_TOPIC_PRIOR_PARAM)) : null;
+    Path docTopicPriorPath = hasOption(CVBConfig.DOC_TOPIC_PRIOR_PATH_PARAM) ? new Path(getOption(CVBConfig.DOC_TOPIC_PRIOR_PATH_PARAM)) : null;
     boolean persistDocTopics = hasOption(CVBConfig.PERSIST_INTERMEDIATE_DOCTOPICS_PARAM)
             && getOption(CVBConfig.PERSIST_INTERMEDIATE_DOCTOPICS_PARAM).equalsIgnoreCase("true");
-    Path docTopicOutputPath = hasOption(DOC_TOPIC_OUTPUT) ? new Path(getOption(DOC_TOPIC_OUTPUT)) : null;
-    Path modelTempPath = hasOption(MODEL_TEMP_DIR)
-                       ? new Path(getOption(MODEL_TEMP_DIR))
+    Path docTopicOutputPath = hasOption(CVBConfig.DOC_TOPIC_OUTPUT_PATH_PARAM) ? new Path(getOption(CVBConfig.DOC_TOPIC_OUTPUT_PATH_PARAM)) : null;
+    Path modelTempPath = hasOption(CVBConfig.MODEL_TEMP_PATH_PARAM)
+                       ? new Path(getOption(CVBConfig.MODEL_TEMP_PATH_PARAM))
                        : getTempPath("topicModelState");
     long seed = hasOption(CVBConfig.RANDOM_SEED_PARAM)
               ? Long.parseLong(getOption(CVBConfig.RANDOM_SEED_PARAM))
@@ -247,7 +250,7 @@ public class CVB0Driver extends AbstractJob {
                 ? "" : "p(topic|docId) will be stored " + c.getDocTopicOutputPath().toString() + '\n';
      log.info(infoString);
 
-     FileSystem fs = FileSystem.get(c.getModelTempPath().toUri(), conf);
+     FileSystem fs = FileSystem.get(conf);
      int iterationNumber = getCurrentIterationNumber(conf, c.getModelTempPath(), c.getMaxIterations());
      log.info("Current iteration number: {}", iterationNumber);
      c.write(conf);
@@ -395,7 +398,7 @@ public class CVB0Driver extends AbstractJob {
   public static double readPerplexity(Configuration conf, Path topicModelStateTemp, int iteration)
       throws IOException {
     Path perplexityPath = perplexityPath(topicModelStateTemp, iteration);
-    FileSystem fs = FileSystem.get(perplexityPath.toUri(), conf);
+    FileSystem fs = FileSystem.get(conf);
     if (!fs.exists(perplexityPath)) {
       log.warn("Perplexity path {} does not exist, returning NaN", perplexityPath);
       return Double.NaN;
@@ -445,7 +448,7 @@ public class CVB0Driver extends AbstractJob {
     job.setOutputFormatClass(SequenceFileOutputFormat.class);
     job.setOutputKeyClass(IntWritable.class);
     job.setOutputValueClass(VectorWritable.class);
-    FileSystem fs = FileSystem.get(corpus.toUri(), conf);
+    FileSystem fs = FileSystem.get(conf);
     if (modelInput != null && fs.exists(modelInput)) {
       FileStatus[] statuses = fs.listStatus(modelInput, PathFilters.partFilter());
       URI[] modelUris = new URI[statuses.length];
@@ -475,7 +478,7 @@ public class CVB0Driver extends AbstractJob {
 
   private static int getCurrentIterationNumber(Configuration config, Path modelTempDir, int maxIterations)
       throws IOException {
-    FileSystem fs = FileSystem.get(modelTempDir.toUri(), config);
+    FileSystem fs = FileSystem.get(config);
     int iterationNumber = 1;
     Path iterationPath = modelPath(modelTempDir, iterationNumber);
     while(fs.exists(iterationPath) && iterationNumber <= maxIterations) {
@@ -537,7 +540,7 @@ public class CVB0Driver extends AbstractJob {
     jobConf1.setMapOutputValueClass(VectorWritable.class);
     jobConf1.setInputFormat(org.apache.hadoop.mapred.SequenceFileInputFormat.class);
     org.apache.hadoop.mapred.FileInputFormat.addInputPath(jobConf1, c.getInputPath());
-    if(FileSystem.get(docTopicInput.toUri(), conf).globStatus(docTopicInput).length > 0) {
+    if(FileSystem.get(conf).globStatus(docTopicInput).length > 0) {
       org.apache.hadoop.mapred.FileInputFormat.addInputPath(jobConf1, docTopicInput);
     }
     MultipleOutputs.addNamedOutput(jobConf1, PriorTrainingReducer.DOC_TOPICS,
@@ -621,7 +624,7 @@ public class CVB0Driver extends AbstractJob {
     if (modelPath == null) {
       return;
     }
-    FileSystem fs = FileSystem.get(modelPath.toUri(), conf);
+    FileSystem fs = FileSystem.get(conf);
     if (!fs.exists(modelPath)) {
       return;
     }

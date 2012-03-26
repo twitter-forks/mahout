@@ -25,14 +25,7 @@ import org.apache.hadoop.io.IntWritable;
 import org.apache.mahout.common.Pair;
 import org.apache.mahout.common.RandomUtils;
 import org.apache.mahout.common.iterator.sequencefile.SequenceFileIterable;
-import org.apache.mahout.math.DenseMatrix;
-import org.apache.mahout.math.DenseVector;
-import org.apache.mahout.math.DistributedRowMatrixWriter;
-import org.apache.mahout.math.Matrix;
-import org.apache.mahout.math.MatrixSlice;
-import org.apache.mahout.math.SequentialAccessSparseVector;
-import org.apache.mahout.math.Vector;
-import org.apache.mahout.math.VectorWritable;
+import org.apache.mahout.math.*;
 import org.apache.mahout.math.function.Functions;
 import org.apache.mahout.math.stats.Sampler;
 import org.slf4j.Logger;
@@ -62,9 +55,7 @@ import java.util.concurrent.TimeUnit;
  * accumulated.
  */
 public class TopicModel implements Configurable, Iterable<MatrixSlice> {
-  
   private static final Logger log = LoggerFactory.getLogger(TopicModel.class);
-  
   private final String[] dictionary;
   private final Matrix topicTermCounts;
   private final Vector topicSums;
@@ -72,20 +63,11 @@ public class TopicModel implements Configurable, Iterable<MatrixSlice> {
   private final int numTerms;
   private final double eta;
   private final double alpha;
-
-  private Configuration conf;
-
+  private final Vector uniform;
   private final Sampler sampler;
   private final int numThreads;
-  private Updater[] updaters;
-
-  public int getNumTerms() {
-    return numTerms;
-  }
-
-  public int getNumTopics() {
-    return numTopics;
-  }
+  private final Updater[] updaters;
+  private Configuration conf;
 
   public TopicModel(int numTopics, int numTerms, double eta, double alpha, String[] dictionary,
       double modelWeight) {
@@ -133,8 +115,10 @@ public class TopicModel implements Configurable, Iterable<MatrixSlice> {
     this.numTerms = topicTermCounts.numCols();
     this.eta = eta;
     this.alpha = alpha;
+    this.uniform = new DenseVector(numTopics).assign(1.0 / numTopics);
     this.sampler = new Sampler(RandomUtils.getRandom());
     this.numThreads = numThreads;
+    this.updaters = new Updater[numThreads];
     if(modelWeight != 1) {
       topicSums.assign(Functions.mult(modelWeight));
       for(int x = 0; x < numTopics; x++) {
@@ -142,6 +126,22 @@ public class TopicModel implements Configurable, Iterable<MatrixSlice> {
       }
     }
     initializeThreadPool();
+  }
+
+  public Matrix getTopicTermCounts() {
+    return topicTermCounts;
+  }
+
+  public Vector getTopicSums() {
+    return topicSums;
+  }
+
+  public int getNumTerms() {
+    return numTerms;
+  }
+
+  public int getNumTopics() {
+    return numTopics;
   }
 
   private static Vector viewRowSums(Matrix m) {
@@ -156,24 +156,15 @@ public class TopicModel implements Configurable, Iterable<MatrixSlice> {
     ThreadPoolExecutor threadPool = new ThreadPoolExecutor(numThreads, numThreads, 0, TimeUnit.SECONDS,
                                                            new ArrayBlockingQueue<Runnable>(numThreads * 10));
     threadPool.allowCoreThreadTimeOut(false);
-    updaters = new Updater[numThreads];
     for(int i = 0; i < numThreads; i++) {
       updaters[i] = new Updater();
       threadPool.submit(updaters[i]);
     }
   }
 
-  Matrix topicTermCounts() {
-    return topicTermCounts;
-  }
-
   @Override
   public Iterator<MatrixSlice> iterator() {
     return topicTermCounts.iterateAll();
-  }
-
-  public Vector topicSums() {
-    return topicSums;
   }
 
   private static Pair<Matrix,Vector> randomMatrix(int numTopics, int numTerms, Random random) {
@@ -288,10 +279,10 @@ public class TopicModel implements Configurable, Iterable<MatrixSlice> {
       topics.set(x, norm);
     }
     // now renormalize so that sum_x(p(x|doc)) = 1
-    topics.assign(Functions.mult(1/topics.norm(1)));
+    topics.assign(Functions.mult(1.0 / topics.norm(1)));
   }
 
-  public Vector infer(Vector original, Vector docTopics) {
+  public Vector expectedTermCounts(Vector original, Vector docTopics) {
     Vector pTerm = original.like();
     Iterator<Vector.Element> it = original.iterateNonZero();
     while(it.hasNext()) {
@@ -305,6 +296,30 @@ public class TopicModel implements Configurable, Iterable<MatrixSlice> {
       pTerm.set(term, pA);
     }
     return pTerm;
+  }
+
+  public Vector infer(Vector original, double minRelPerplexityDiff, int maxIters) {
+    return infer(original, uniform, minRelPerplexityDiff, maxIters);
+  }
+
+  public Vector infer(Vector original, Vector docTopicPrior, double minRelPerplexityDiff, int maxIters) {
+    Vector docTopic = docTopicPrior.clone();
+    double oldPerplexity;
+    double perplexity = Double.MAX_VALUE;
+    double relPerplexityDiff = Double.MAX_VALUE;
+    int iter = 1;
+    for (; iter <= maxIters || (iter > 1 && relPerplexityDiff < minRelPerplexityDiff); ++iter) {
+      oldPerplexity = perplexity;
+      perplexity = perplexity(original, docTopic);
+      trainDocTopicModel(original, docTopic, new SparseRowMatrix(numTopics, numTerms));
+      if (oldPerplexity < perplexity) {
+        log.warn("Document inference lead to increasing perplexity after {} iterations", iter);
+      } else {
+        relPerplexityDiff = (oldPerplexity - perplexity) / oldPerplexity;
+      }
+    }
+    log.debug("Relative perplexity difference of {} achieved after {} iterations", relPerplexityDiff, iter);
+    return docTopic;
   }
 
   public void update(Matrix docTopicCounts) {
