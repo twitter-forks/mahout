@@ -149,6 +149,7 @@ public class CVB0Driver extends AbstractJob {
     addOption(CVBConfig.PERSIST_INTERMEDIATE_DOCTOPICS_PARAM, "pidt", "persist and update intermediate p(topic|doc)", "false");
     addOption(CVBConfig.DOC_TOPIC_PRIOR_PATH_PARAM, "dtp", "path to prior values of p(topic|doc) matrix");
     addOption(CVBConfig.MAX_ITERATIONS_PER_DOC_PARAM, "mipd", "max number of iterations per doc for p(topic|doc) learning", String.valueOf(CVBConfig.MAX_ITERATIONS_PER_DOC_DEFAULT));
+    addOption(CVBConfig.MAX_INFERENCE_ITERATIONS_PER_DOC_PARAM, "int", "max number of iterations per doc for p(topic|doc) inference", String.valueOf(CVBConfig.MAX_INFERENCE_ITERATIONS_PER_DOC_DEFAULT));
     addOption(CVBConfig.NUM_REDUCE_TASKS_PARAM, null, "number of reducers to use during model estimation", String.valueOf(CVBConfig.NUM_REDUCE_TASKS_DEFAULT));
     addOption(CVBConfig.ONLY_LABELED_DOCS_PARAM, "ol", "only use docs with non-null doc/topic priors", "false");
     addOption(buildOption(CVBConfig.BACKFILL_PERPLEXITY_PARAM, null, "enable back-filling of missing perplexity values", false, false, null));
@@ -168,6 +169,7 @@ public class CVB0Driver extends AbstractJob {
     int numTrainThreads = Integer.parseInt(getOption(CVBConfig.NUM_TRAIN_THREADS_PARAM));
     int numUpdateThreads = Integer.parseInt(getOption(CVBConfig.NUM_UPDATE_THREADS_PARAM));
     int maxItersPerDoc = Integer.parseInt(getOption(CVBConfig.MAX_ITERATIONS_PER_DOC_PARAM));
+    int maxInferenceItersPerDoc = Integer.parseInt(getOption(CVBConfig.MAX_INFERENCE_ITERATIONS_PER_DOC_PARAM));
     Path dictionaryPath = hasOption(CVBConfig.DICTIONARY_PATH_PARAM) ? new Path(getOption(CVBConfig.DICTIONARY_PATH_PARAM)) : null;
     int numTerms = hasOption(CVBConfig.NUM_TERMS_PARAM)
                  ? Integer.parseInt(getOption(CVBConfig.NUM_TERMS_PARAM))
@@ -196,6 +198,7 @@ public class CVB0Driver extends AbstractJob {
         .setPersistDocTopics(persistDocTopics)
         .setIterationBlockSize(iterationBlockSize).setMaxIterations(maxIterations)
         .setMaxItersPerDoc(maxItersPerDoc).setModelTempPath(modelTempPath)
+        .setMaxInferenceItersPerDoc(maxInferenceItersPerDoc)
         .setNumReduceTasks(numReduceTasks).setNumTrainThreads(numTrainThreads)
         .setNumUpdateThreads(numUpdateThreads).setNumTerms(numTerms).setNumTopics(numTopics)
         .setTestFraction(testFraction).setRandomSeed(seed).setUseOnlyLabeledDocs(useOnlyLabeledDocs);
@@ -667,7 +670,7 @@ public class CVB0Driver extends AbstractJob {
 
   public static final class Id implements
       org.apache.hadoop.mapred.Mapper<IntWritable, VectorWritable, IntWritable, VectorWritable> {
-    
+
     @Override public void map(IntWritable k, VectorWritable v,
         OutputCollector<IntWritable, VectorWritable> out, Reporter reporter) throws IOException {
       out.collect(k, v);
