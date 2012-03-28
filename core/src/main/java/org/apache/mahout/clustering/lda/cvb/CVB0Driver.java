@@ -253,11 +253,11 @@ public class CVB0Driver extends AbstractJob {
                 ? "" : "p(topic|docId) will be stored " + c.getDocTopicOutputPath().toString() + '\n';
      log.info(infoString);
 
-     FileSystem fs = FileSystem.get(conf);
      int iterationNumber = getCurrentIterationNumber(conf, c.getModelTempPath(), c.getMaxIterations());
      log.info("Current iteration number: {}", iterationNumber);
      c.write(conf);
 
+     FileSystem fs = FileSystem.get(c.getModelTempPath().toUri(), conf);
       List<Double> perplexities = Lists.newArrayList();
       for (int i = 1; i <= iterationNumber; i++) {
         // form path to model
@@ -400,8 +400,8 @@ public class CVB0Driver extends AbstractJob {
    */
   public static double readPerplexity(Configuration conf, Path topicModelStateTemp, int iteration)
       throws IOException {
+    FileSystem fs = FileSystem.get(topicModelStateTemp.toUri(), conf);
     Path perplexityPath = perplexityPath(topicModelStateTemp, iteration);
-    FileSystem fs = FileSystem.get(conf);
     if (!fs.exists(perplexityPath)) {
       log.warn("Perplexity path {} does not exist, returning NaN", perplexityPath);
       return Double.NaN;
@@ -451,7 +451,7 @@ public class CVB0Driver extends AbstractJob {
     job.setOutputFormatClass(SequenceFileOutputFormat.class);
     job.setOutputKeyClass(IntWritable.class);
     job.setOutputValueClass(VectorWritable.class);
-    FileSystem fs = FileSystem.get(conf);
+    FileSystem fs = FileSystem.get(modelInput.toUri(), conf);
     if (modelInput != null && fs.exists(modelInput)) {
       FileStatus[] statuses = fs.listStatus(modelInput, PathFilters.partFilter());
       URI[] modelUris = new URI[statuses.length];
@@ -479,13 +479,14 @@ public class CVB0Driver extends AbstractJob {
     return new Path(topicModelStateTempPath, "perplexity-" + iterationNumber);
   }
 
-  private static int getCurrentIterationNumber(Configuration config, Path modelTempDir, int maxIterations)
+  private static int getCurrentIterationNumber(Configuration conf, Path modelTempDir, int maxIterations)
       throws IOException {
-    FileSystem fs = FileSystem.get(config);
+    log.info("Scanning path '{}' for existing data", modelTempDir);
+    FileSystem fs = FileSystem.get(modelTempDir.toUri(), conf);
     int iterationNumber = 1;
     Path iterationPath = modelPath(modelTempDir, iterationNumber);
     while(fs.exists(iterationPath) && iterationNumber <= maxIterations) {
-      log.info("Found previous state: " + iterationPath);
+      log.info("Found previous state '{}'", iterationPath);
       iterationNumber++;
       iterationPath = modelPath(modelTempDir, iterationNumber);
     }
@@ -543,7 +544,7 @@ public class CVB0Driver extends AbstractJob {
     jobConf1.setMapOutputValueClass(VectorWritable.class);
     jobConf1.setInputFormat(org.apache.hadoop.mapred.SequenceFileInputFormat.class);
     org.apache.hadoop.mapred.FileInputFormat.addInputPath(jobConf1, c.getInputPath());
-    if(FileSystem.get(conf).globStatus(docTopicInput).length > 0) {
+    if(FileSystem.get(docTopicInput.toUri(), conf).globStatus(docTopicInput).length > 0) {
       org.apache.hadoop.mapred.FileInputFormat.addInputPath(jobConf1, docTopicInput);
     }
     MultipleOutputs.addNamedOutput(jobConf1, PriorTrainingReducer.DOC_TOPICS,
@@ -627,7 +628,7 @@ public class CVB0Driver extends AbstractJob {
     if (modelPath == null) {
       return;
     }
-    FileSystem fs = FileSystem.get(conf);
+    FileSystem fs = FileSystem.get(modelPath.toUri(), conf);
     if (!fs.exists(modelPath)) {
       return;
     }
