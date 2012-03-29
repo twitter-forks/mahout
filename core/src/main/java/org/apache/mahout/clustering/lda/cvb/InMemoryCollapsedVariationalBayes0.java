@@ -159,7 +159,7 @@ public class InMemoryCollapsedVariationalBayes0 extends AbstractJob {
 
   private void inferDocuments(double convergence, int maxIter, boolean recalculate) {
     for(int docId = 0; docId < corpusWeights.numRows() ; docId++) {
-      Vector inferredDocument = topicModel.infer(corpusWeights.viewRow(docId),
+      Vector inferredDocument = topicModel.expectedTermCounts(corpusWeights.viewRow(docId),
           docTopicCounts.viewRow(docId));
       // do what now?
     }
