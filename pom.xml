@@ -20,7 +20,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.apache.mahout</groupId>
   <artifactId>mahout</artifactId>
-  <version>0.6-T1</version>
+  <version>0.6-T2-SNAPSHOT</version>
 
   <parent>
     <groupId>org.apache</groupId>
