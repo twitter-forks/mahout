@@ -56,6 +56,7 @@ import java.util.Random;
 public class CachingCVB0Mapper
     extends Mapper<IntWritable, VectorWritable, IntWritable, VectorWritable> {
   private static final Logger log = LoggerFactory.getLogger(CachingCVB0Mapper.class);
+  protected CVBConfig config;
   protected ModelTrainer modelTrainer;
   protected int maxIters;
   protected int numTopics;
@@ -66,7 +67,7 @@ public class CachingCVB0Mapper
   protected void setup(Context context) throws IOException, InterruptedException {
     log.info("Retrieving configuration");
     Configuration conf = context.getConfiguration();
-    CVBConfig config = new CVBConfig().read(conf);
+    config = new CVBConfig().read(conf);
     float eta = config.getEta();
     float alpha = config.getAlpha();
     long seed = config.getRandomSeed();
