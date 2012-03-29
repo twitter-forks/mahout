@@ -113,6 +113,13 @@
       </excludes>
     </fileSet>
     <fileSet>
+      <directory>${project.basedir}/../src/main/ruby</directory>
+      <includes>
+        <include>*.rb</include>
+      </includes>
+      <outputDirectory>lib/ruby</outputDirectory>
+    </fileSet>
+    <fileSet>
       <directory>${project.basedir}/../bin</directory>
       <outputDirectory>bin</outputDirectory>
       <includes>

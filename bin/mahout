@@ -9,7 +9,7 @@
 #   MAHOUT_HEAPSIZE    The maximum amount of heap to use, in MB. 
 #                      Default is 1000.
 #
-#   HADOOP_CONF_DIR  The location of a hadoop config directory 
+#   HADOOP_CONF_DIR    Path to Hadoop config directory.
 #
 #   MAHOUT_OPTS        Extra Java runtime options.
 #
@@ -24,6 +24,10 @@
 #   MAHOUT_CORE        set to anything other than an empty string to force
 #                      mahout to run in developer 'core' mode, just as if the
 #                      -core option was presented on the command-line
+#
+#   JRUBY_HOME         Path to JRuby installation, required for execution of
+#                      'mahout console'.
+#
 # Commane-line Options
 #
 #   -core              -core is used to switch into 'developer mode' when
@@ -160,6 +164,21 @@ for f in $MAHOUT_HOME/examples/target/dependency/*.jar; do
   CLASSPATH=${CLASSPATH}:$f;
 done
 
+# default driver class
+CLASS=org.apache.mahout.driver.MahoutDriver
+
+# test for invocation of mahout console
+if [ "$1" = "console" ]; then
+    shift;
+    if [ "x$JRUBY_HOME" = "x" ]; then
+        echo "Environment variable 'JRUBY_HOME' is undefined. Please set it to the location of your JRuby installation." >&2
+        exit 1
+    fi
+    MAHOUT_LOCAL="console"
+    MAHOUT_OPTS="$MAHOUT_OPTS -Djruby.home=$JRUBY_HOME -Djruby.lib=$JRUBY_HOME/lib"
+    CLASSPATH="$JRUBY_HOME/lib/jruby.jar:$CLASSPATH"
+    CLASS="org.jruby.Main --1.9 $MAHOUT_HOME/lib/ruby/mahout_console.rb"
+fi
 
 # cygwin path translation
 if $cygwin; then
@@ -188,8 +207,6 @@ MAHOUT_OPTS="$MAHOUT_OPTS -Dhadoop.log.file=$MAHOUT_LOGFILE"
 if [ "x$JAVA_LIBRARY_PATH" != "x" ]; then
   MAHOUT_OPTS="$MAHOUT_OPTS -Djava.library.path=$JAVA_LIBRARY_PATH"
 fi
-
-CLASS=org.apache.mahout.driver.MahoutDriver
 
 for f in $MAHOUT_HOME/examples/target/mahout-examples-*-job.jar $MAHOUT_HOME/mahout-examples-*-job.jar ; do
   if [ -e "$f" ]; then
