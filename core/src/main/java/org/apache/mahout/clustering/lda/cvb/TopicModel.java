@@ -308,15 +308,15 @@ public class TopicModel implements Configurable, Iterable<MatrixSlice> {
     double perplexity = Double.MAX_VALUE;
     double relPerplexityDiff = Double.MAX_VALUE;
     int iter = 1;
-    for (; iter <= maxIters || (iter > 1 && relPerplexityDiff < minRelPerplexityDiff); ++iter) {
+    for (; iter <= maxIters && relPerplexityDiff > minRelPerplexityDiff; ++iter) {
       oldPerplexity = perplexity;
       perplexity = perplexity(original, docTopic);
       trainDocTopicModel(original, docTopic, new SparseRowMatrix(numTopics, numTerms));
       if (oldPerplexity < perplexity) {
         log.warn("Document inference lead to increasing perplexity after {} iterations", iter);
-      } else {
-        relPerplexityDiff = (oldPerplexity - perplexity) / oldPerplexity;
+        break;
       }
+      relPerplexityDiff = (oldPerplexity - perplexity) / oldPerplexity;
     }
     log.debug("Relative perplexity difference of {} achieved after {} iterations", relPerplexityDiff, iter);
     return docTopic;
