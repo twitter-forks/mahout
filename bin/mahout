@@ -176,7 +176,7 @@ if [ "$1" = "console" ]; then
     fi
     MAHOUT_LOCAL="console"
     MAHOUT_OPTS="$MAHOUT_OPTS -Djruby.home=$JRUBY_HOME -Djruby.lib=$JRUBY_HOME/lib"
-    CLASSPATH="$JRUBY_HOME/lib/jruby.jar:$CLASSPATH"
+    CLASSPATH="$CLASSPATH:$JRUBY_HOME/lib/jruby.jar"
     CLASS="org.jruby.Main --1.9 $MAHOUT_HOME/lib/ruby/mahout_console.rb"
 fi
 
@@ -245,7 +245,7 @@ else
   else
     case "$1" in
     (hadoop)
-      export HADOOP_CLASSPATH=$MAHOUT_CONF_DIR:${HADOOP_CLASSPATH}:$CLASSPATH
+      export HADOOP_CLASSPATH=$HADOOP_CLASSPATH:$MAHOUT_CONF_DIR:$CLASSPATH
       exec "$HADOOP_HOME/bin/$@"
       ;;
     (classpath)
@@ -253,7 +253,7 @@ else
       ;;
     (*)
       echo "MAHOUT-JOB: $MAHOUT_JOB"
-      export HADOOP_CLASSPATH=$MAHOUT_CONF_DIR:${HADOOP_CLASSPATH}
+      export HADOOP_CLASSPATH=$HADOOP_CLASSPATH:$MAHOUT_CONF_DIR
       exec "$HADOOP_HOME/bin/hadoop" --config $HADOOP_CONF_DIR jar $MAHOUT_JOB $CLASS "$@"
     esac
   fi
