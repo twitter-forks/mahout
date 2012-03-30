@@ -253,69 +253,68 @@ public class CVB0Driver extends AbstractJob {
                 ? "" : "p(topic|docId) will be stored " + c.getDocTopicOutputPath().toString() + '\n';
      log.info(infoString);
 
-     int iterationNumber = getCurrentIterationNumber(conf, c.getModelTempPath(), c.getMaxIterations());
-     log.info("Current iteration number: {}", iterationNumber);
+     // determine what the "current" iteration is (the iteration for which no data yet exists)
+     int currentIteration = getCurrentIterationNumber(conf, c.getModelTempPath(), c.getMaxIterations());
+     log.info("Current iteration number: {}", currentIteration);
      c.write(conf);
 
+     // load (and optionally back-fill) perplexity values for previous iterations
      FileSystem fs = FileSystem.get(c.getModelTempPath().toUri(), conf);
-      List<Double> perplexities = Lists.newArrayList();
-      for (int i = 1; i <= iterationNumber; i++) {
-        // form path to model
+     List<Double> perplexities = Lists.newArrayList();
+     for (int i = 1; i < currentIteration; i++) {
+       // form path to model
        Path modelPath = modelPath(c.getModelTempPath(), i);
 
-        // read perplexity
+       // read perplexity
        double perplexity = readPerplexity(conf, c.getModelTempPath(), i);
-        if (Double.isNaN(perplexity)) {
+       if (Double.isNaN(perplexity)) {
          if (!(c.isBackfillPerplexity() && i % c.getIterationBlockSize() == 0)) {
-            continue;
-          }
-          log.info("Backfilling perplexity at iteration {}", i);
-        if (!fs.exists(modelPath)) {
-          log.error("Model path '{}' does not exist; Skipping iteration {} perplexity calculation", modelPath.toString(), i);
-          continue;
-        }
-        perplexity = calculatePerplexity(conf, c.getInputPath(), modelPath, i);
-      }
+           continue;
+         }
+         log.info("Backfilling perplexity at iteration {}", i);
+         if (!fs.exists(modelPath)) {
+           log.error("Model path '{}' does not exist; Skipping iteration {} perplexity calculation", modelPath.toString(), i);
+           continue;
+         }
+         perplexity = calculatePerplexity(conf, c.getInputPath(), modelPath, i);
+       }
 
-      // register and log perplexity
-      perplexities.add(perplexity);
-      log.info("Perplexity at iteration {} = {}", i, perplexity);
-    }
+       // register and log perplexity
+       perplexities.add(perplexity);
+       log.info("Perplexity at iteration {} = {}", i, perplexity);
+     }
 
     long startTime = System.currentTimeMillis();
-    while(iterationNumber < c.getMaxIterations()) {
-      // test convergence
-      if (c.getConvergenceDelta() > 0) {
+    int iterationCount = 0;
+    boolean converged = false;
+    for (; !converged && currentIteration <= c.getMaxIterations(); currentIteration++, iterationCount++) {
+      // run current iteration
+      log.info("About to run iteration {} of {}", currentIteration, c.getMaxIterations());
+      runIteration(conf, c, currentIteration);
+
+      if(c.getTestFraction() > 0 && currentIteration % c.getIterationBlockSize() == 0) {
+        // calculate perplexity
+        Path modelPath = modelPath(c.getModelTempPath(), currentIteration);
+        double perplexity = calculatePerplexity(conf, c.getInputPath(), modelPath, currentIteration);
+        perplexities.add(perplexity);
         double delta = rateOfChange(perplexities);
-        if (delta < c.getConvergenceDelta()) {
-          log.info("Convergence achieved at iteration {} with perplexity {} and delta {}",
-              new Object[]{iterationNumber, perplexities.get(perplexities.size() - 1), delta});
-          break;
+        log.info("Current perplexity = {}", perplexity);
+        log.info("(p_curr - p_prev) / p_1 = {}; target = {}", delta, c.getConvergenceDelta());
+
+        // test convergence
+        if (c.getConvergenceDelta() > 0 && delta < c.getConvergenceDelta()) {
+          log.info("Convergence achieved with perplexity {} and delta {}", perplexity, delta);
+          converged = true;
         }
       }
-
-      // update model, starts with iteration number 1
-      iterationNumber++;
-      log.info("About to run iteration {} of {}", iterationNumber, c.getMaxIterations());
-      runIteration(conf, c, iterationNumber);
-
-      // calculate perplexity
-      if(c.getTestFraction() > 0 && iterationNumber % c.getIterationBlockSize() == 0) {
-        perplexities.add(calculatePerplexity(conf, c.getInputPath(),
-            modelPath(c.getModelTempPath(), iterationNumber), iterationNumber));
-        log.info("Current perplexity = {}", perplexities.get(perplexities.size() - 1));
-        log.info("(p_{} - p_{}) / p_0 = {}; target = {}", new Object[]{
-            iterationNumber , iterationNumber - c.getIterationBlockSize(),
-            rateOfChange(perplexities), c.getConvergenceDelta()
-        });
-      }
     }
-    log.info("Completed {} iterations in {} seconds", iterationNumber,
-        (System.currentTimeMillis() - startTime)/1000);
+    long endTime = System.currentTimeMillis();
+    log.info("Completed {} iterations in {} seconds", iterationCount, (endTime - startTime) / 1000);
     log.info("Perplexities: ({})", Joiner.on(", ").join(perplexities));
 
     // write final topic-term and doc-topic distributions
-    Path finalIterationData = modelPath(c.getModelTempPath(), iterationNumber);
+    int finalIteration = currentIteration - 1;
+    Path finalIterationData = modelPath(c.getModelTempPath(), finalIteration);
     Job topicModelOutputJob = c.getOutputPath() != null
         ? writeTopicModel(conf, finalIterationData, c.getOutputPath())
         : null;
@@ -479,6 +478,21 @@ public class CVB0Driver extends AbstractJob {
     return new Path(topicModelStateTempPath, "perplexity-" + iterationNumber);
   }
 
+  /**
+   * Scans model state path for existing models, returning the number of the
+   * iteration for which no data yet exists. For example, when no model data for
+   * any iteration is found, this function will return 1.
+   *
+   * @param conf
+   *          job configuration.
+   * @param modelTempDir
+   *          path to model state.
+   * @param maxIterations
+   *          max number of iterations to look for.
+   * @return the one-based number of the "current" iteration. If no results
+   *         exist, this function will return 1.
+   * @throws IOException
+   */
   private static int getCurrentIterationNumber(Configuration conf, Path modelTempDir, int maxIterations)
       throws IOException {
     log.info("Scanning path '{}' for existing data", modelTempDir);
@@ -490,7 +504,7 @@ public class CVB0Driver extends AbstractJob {
       iterationNumber++;
       iterationPath = modelPath(modelTempDir, iterationNumber);
     }
-    return iterationNumber - 1;
+    return iterationNumber;
   }
 
   public static void runIteration(Configuration conf, CVBConfig c, int iterationNumber) throws IOException,
@@ -498,10 +512,7 @@ public class CVB0Driver extends AbstractJob {
     if(c.isPersistDocTopics() || c.getDocTopicPriorPath() != null) {
       runIterationWithDocTopicPriors(conf, c, iterationNumber);
     } else {
-      Path modelInput = modelPath(c.getModelTempPath(), iterationNumber);
-      Path modelOutput = modelPath(c.getModelTempPath(), iterationNumber + 1);
-      runIterationNoPriors(conf, c.getInputPath(), modelInput, modelOutput, iterationNumber,
-          c.getMaxIterations(), c.getNumReduceTasks());
+      runIterationNoPriors(conf, c, iterationNumber);
     }
   }
 
@@ -520,60 +531,67 @@ public class CVB0Driver extends AbstractJob {
    *     model_i+1
    *
    * @param conf the basic configuration
-   * @param iterationNumber
+   * @param currentIteration
    * @throws IOException
    * @throws ClassNotFoundException
    * @throws InterruptedException
    */
   public static void runIterationWithDocTopicPriors(Configuration conf, CVBConfig c,
-      int iterationNumber)
+      final int currentIteration)
       throws IOException, ClassNotFoundException, InterruptedException {
+    // define IO paths
+    final int previousIteration = currentIteration - 1;
+    final Path inputModelPath = modelPath(c.getModelTempPath(), previousIteration);
+    final Path intermediateModelPath = getIntermediateModelPath(currentIteration, c.getModelTempPath());
+    final Path intermediateTopicTermPath = getIntermediateTopicTermPath(currentIteration, c.getModelTempPath());
+    final Path outputModelPath = modelPath(c.getModelTempPath(), currentIteration);
     Path docTopicInput;
-    if(c.getDocTopicPriorPath() == null || (c.isPersistDocTopics() && iterationNumber > 1)) {
-      docTopicInput = getDocTopicPath(iterationNumber - 1, c.getModelTempPath());
+    if(c.getDocTopicPriorPath() == null || (c.isPersistDocTopics() && currentIteration > 1)) {
+      docTopicInput = getDocTopicPath(previousIteration, c.getModelTempPath());
     } else {
       docTopicInput = c.getDocTopicPriorPath();
     }
+
+    // create and configure part 1 job
+    String jobName1 = String.format("Part 1 of iteration %d of %d, input corpus %s, doc-topics: %s",
+        currentIteration, c.getMaxIterations(), c.getInputPath(), docTopicInput);
+    // TODO(Jake Mannix): is this really the ctor you want?
     JobConf jobConf1 = new JobConf(conf, CVB0Driver.class);
+    jobConf1.setJobName(jobName1);
+    jobConf1.setJarByClass(CVB0Driver.class);
     jobConf1.setMapperClass(Id.class);
     jobConf1.setClass("mapred.input.key.class", IntWritable.class, WritableComparable.class);
     jobConf1.setClass("mapred.input.value.class", VectorWritable.class, Writable.class);
-    jobConf1.setReducerClass(PriorTrainingReducer.class);
-    jobConf1.setNumReduceTasks(c.getNumReduceTasks());
     jobConf1.setMapOutputKeyClass(IntWritable.class);
     jobConf1.setMapOutputValueClass(VectorWritable.class);
+    jobConf1.setReducerClass(PriorTrainingReducer.class);
+    jobConf1.setNumReduceTasks(c.getNumReduceTasks());
+    // configure job input
     jobConf1.setInputFormat(org.apache.hadoop.mapred.SequenceFileInputFormat.class);
+    setModelPaths(jobConf1, inputModelPath);
     org.apache.hadoop.mapred.FileInputFormat.addInputPath(jobConf1, c.getInputPath());
     if(FileSystem.get(docTopicInput.toUri(), conf).globStatus(docTopicInput).length > 0) {
       org.apache.hadoop.mapred.FileInputFormat.addInputPath(jobConf1, docTopicInput);
     }
+    // configure job output
     MultipleOutputs.addNamedOutput(jobConf1, PriorTrainingReducer.DOC_TOPICS,
         org.apache.hadoop.mapred.SequenceFileOutputFormat.class, IntWritable.class, VectorWritable.class);
     MultipleOutputs.addNamedOutput(jobConf1, PriorTrainingReducer.TOPIC_TERMS,
         org.apache.hadoop.mapred.SequenceFileOutputFormat.class, IntWritable.class, VectorWritable.class);
-    org.apache.hadoop.mapred.FileOutputFormat.setOutputPath(jobConf1,
-        getIntermediateModelPath(iterationNumber, c.getModelTempPath()));
-
-    String jobName1 = String.format("Part 1 of iteration %d of %d, input corpus %s, doc-topics: %s",
-        iterationNumber, c.getMaxIterations(), c.getInputPath(), docTopicInput);
-    jobConf1.setJobName(jobName1);
-    log.info(jobName1);
-    jobConf1.setJarByClass(CVB0Driver.class);
-    setModelPaths(jobConf1, modelPath(c.getModelTempPath(), iterationNumber));
-    HadoopUtil.delete(conf, getIntermediateTopicTermPath(
-        iterationNumber + 1, c.getModelTempPath()));
+    org.apache.hadoop.mapred.FileOutputFormat.setOutputPath(jobConf1, intermediateModelPath);
+    // remove any existing output and invoke part 1 job
+    log.info("About to run: " + jobName1);
+    HadoopUtil.delete(conf, intermediateModelPath);
     RunningJob runningJob = JobClient.runJob(jobConf1);
-
     if(!runningJob.isComplete()) {
       throw new InterruptedException(String.format("Failed to complete iteration %d stage 1",
-          iterationNumber));
+          currentIteration));
     }
 
+    // create and configure part 2 job
     String jobName2 = String.format("Part 2 of iteration %d of %d, input model fragments %s," +
-        " output model state: %s", iterationNumber, c.getMaxIterations(),
-        getIntermediateTopicTermPath(iterationNumber, c.getModelTempPath()),
-        modelPath(c.getModelTempPath(), iterationNumber + 1));
-    log.info(jobName2);
+        " output model state: %s", currentIteration, c.getMaxIterations(),
+        intermediateTopicTermPath, outputModelPath);
     c.write(conf);
     Job job2 = new Job(conf, jobName2);
     job2.setJarByClass(CVB0Driver.class);
@@ -583,44 +601,49 @@ public class CVB0Driver extends AbstractJob {
     job2.setNumReduceTasks(c.getNumReduceTasks());
     job2.setOutputKeyClass(IntWritable.class);
     job2.setOutputValueClass(VectorWritable.class);
-    FileInputFormat.addInputPath(job2, getIntermediateTopicTermPath(iterationNumber,
-        c.getModelTempPath()));
+    // configure job input
     job2.setInputFormatClass(SequenceFileInputFormat.class);
-    FileOutputFormat.setOutputPath(job2, modelPath(c.getModelTempPath(), iterationNumber + 1));
+    FileInputFormat.addInputPath(job2, intermediateTopicTermPath);
+    // configure job output
     job2.setOutputFormatClass(SequenceFileOutputFormat.class);
-
+    FileOutputFormat.setOutputPath(job2, outputModelPath);
+    // remove any existing output and invoke part 2 job
     log.info("About to run: " + jobName2);
-    HadoopUtil.delete(conf, modelPath(c.getModelTempPath(), iterationNumber + 1));
-
+    HadoopUtil.delete(conf, outputModelPath);
     if(!job2.waitForCompletion(true)) {
       throw new InterruptedException(String.format("Failed to complete iteration %d stage 2",
-          iterationNumber));
+          currentIteration));
     }
   }
 
-  public static void runIterationNoPriors(Configuration conf, Path corpusInput,
-      Path modelInput, Path modelOutput, int iterationNumber, int maxIterations, int numReduceTasks)
+  public static void runIterationNoPriors(Configuration conf, CVBConfig c, int currentIteration)
       throws IOException, ClassNotFoundException, InterruptedException {
+    final int previousIteration = currentIteration - 1;
+    final Path modelInput = modelPath(c.getModelTempPath(), previousIteration);
+    final Path modelOutput = modelPath(c.getModelTempPath(), currentIteration);
     String jobName = String.format("Iteration %d of %d, input model path: %s",
-        iterationNumber, maxIterations, modelInput);
-    log.info("About to run: " + jobName);
+        currentIteration, c.getMaxIterations(), modelInput);
     Job job = new Job(conf, jobName);
     job.setJarByClass(CVB0Driver.class);
     job.setMapperClass(CachingCVB0Mapper.class);
     job.setCombinerClass(VectorSumReducer.class);
     job.setReducerClass(VectorSumReducer.class);
-    job.setNumReduceTasks(numReduceTasks);
+    job.setNumReduceTasks(c.getNumReduceTasks());
     job.setOutputKeyClass(IntWritable.class);
     job.setOutputValueClass(VectorWritable.class);
+    // configure job input
     job.setInputFormatClass(SequenceFileInputFormat.class);
-    job.setOutputFormatClass(SequenceFileOutputFormat.class);
-    FileInputFormat.addInputPath(job, corpusInput);
-    FileOutputFormat.setOutputPath(job, modelOutput);
+    FileInputFormat.addInputPath(job, c.getInputPath());
     setModelPaths(job.getConfiguration(), modelInput);
+    // configure job output
+    job.setOutputFormatClass(SequenceFileOutputFormat.class);
+    FileOutputFormat.setOutputPath(job, modelOutput);
+    // remove existing output and invoke job
+    log.info("About to run: " + jobName);
     HadoopUtil.delete(conf, modelOutput);
     if(!job.waitForCompletion(true)) {
       throw new InterruptedException(String.format("Failed to complete iteration %d stage 1",
-          iterationNumber));
+          currentIteration));
     }
   }
 
