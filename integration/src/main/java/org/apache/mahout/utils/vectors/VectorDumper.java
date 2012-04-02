@@ -88,9 +88,9 @@ public final class VectorDumper extends AbstractJob {
     addOption("sizeOnly", "sz", "Dump only the size of the vector", false);
     addOption("numItems", "ni", "Output at most <n> vecors", false);
     addOption("vectorSize", "vs", "Truncate vectors to <vs> length when dumping (most useful when in"
-            + " conjunction with -sort", false);
-    addOption(buildOption("filter", "fi", "Only dump out those vectors whose name matches the filter." +
-            "  Multiple items may be specified by repeating the argument.", true, 1, 100, false, null));
+            + " conjunction with -sort", "100");
+//    addOption(buildOption("filter", "fi", "Only dump out those vectors whose name matches the filter." +
+//            "  Multiple items may be specified by repeating the argument.", true, 1, 100, false, null));
 
     if (parseArguments(args, false, true) == null) {
       return -1;
@@ -176,8 +176,8 @@ public final class VectorDumper extends AbstractJob {
           writer.append("#Max Items to dump: ").append(String.valueOf(numItems)).append('\n');
         }
       }
-      int maxIndexesPerVector = hasOption("numIndexesPerVector")
-              ? Integer.parseInt(getOption("numIndexesPerVector").toString())
+      int maxIndexesPerVector = hasOption("vectorSize")
+              ? Integer.parseInt(getOption("vectorSize").toString())
               : Integer.MAX_VALUE;
       long itemCount = 0;
       int fileCount = 0;
