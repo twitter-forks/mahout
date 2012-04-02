@@ -165,8 +165,8 @@ for f in $MAHOUT_HOME/examples/target/dependency/*.jar; do
 done
 
 # make sure that HADOOP_HOME's hadoop-core jar is first on classpath, to avoid version mismatches
-for f in $HADOOP_HOME/hadoop-core-*.jar; do
-  CLASSPATH=$f:${CLASSPATH};
+for f in "$HADOOP_HOME"/hadoop-core-*.jar; do
+  CLASSPATH="$f:$CLASSPATH";
 done
 
 # default driver class
