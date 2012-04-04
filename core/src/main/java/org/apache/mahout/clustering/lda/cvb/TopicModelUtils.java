@@ -7,6 +7,7 @@ import java.util.PriorityQueue;
 import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.Matrix;
 import org.apache.mahout.math.RandomAccessSparseVector;
+import org.apache.mahout.math.SequentialAccessSparseVector;
 import org.apache.mahout.math.SparseRowMatrix;
 import org.apache.mahout.math.Vector;
 import org.apache.mahout.math.Vector.Element;
@@ -20,18 +21,25 @@ import com.google.common.collect.Lists;
  */
 public class TopicModelUtils {
   /**
-   * Sparsifies input topicTermCounts matrix.
+   * Generates a sparse version of input topic-term matrix. Sparsification is
+   * performed as follows: For each topic (row), the sum of all entries is found
+   * (L1 norm). This sum is then scaled by the threshold argument to find a
+   * target count threshold for the current topic. Then the set of term counts
+   * with largest weight whose total weight is less than or equal to the count
+   * threshold is determined. These term counts are added to the output
+   * topic-term count vector for the current topic. The counts for all other
+   * terms for the current topic are added to global term count sums to keep
+   * track of lost term count mass. Once all truncated topic-term count vectors
+   * have been built, the removed term count mass is added evenly to remaining
+   * non-zero topic-term count entries: For each term (column), if removed term
+   * count mass is greater than zero we find the set of topics (rows) for which
+   * term count is still non-zero. We divide removed term count mass by this
+   * number and add this fraction of term count mass to each non-zero entry.
    *
    * @param topicTermCounts
-   *          matrix containing topic-term counts to sparsify in-place.
+   *          matrix containing topic-term counts to sparsify.
    * @param threshold
-   *          relative threshold on each topic's total term count. The term
-   *          count elements for each topic are sorted by count desc and the top
-   *          term count elements whose sum is less than the given threshold are
-   *          preserved. Remaining term count elements are not set in output
-   *          matrix. Columns of the output matrix are re-normalized after
-   *          truncation process, assigning truncated term count mass evenly to
-   *          those topics whose remaining term count is non-zero.
+   *          relative threshold on each topic's total term count.
    * @return sparsified version of topicTermCounts.
    */
   public static Matrix sparsifyTopicTermCounts(Matrix topicTermCounts,
@@ -90,10 +98,12 @@ public class TopicModelUtils {
       // initialize output topic-term count vector
       Vector sparseTermCounts = new RandomAccessSparseVector(numTerms,
           topTermCountEntries.size());
-      sparseTopicTermCounts[t] = sparseTermCounts;
       for (Entry e : topTermCountEntries) {
         sparseTermCounts.setQuick(e.getIndex(), e.getValue());
       }
+      // ensure sequential access for output vectors
+      sparseTermCounts = new SequentialAccessSparseVector(sparseTermCounts);
+      sparseTopicTermCounts[t] = sparseTermCounts;
     }
 
     /*
