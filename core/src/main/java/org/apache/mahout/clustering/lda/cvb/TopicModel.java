@@ -374,6 +374,8 @@ public class TopicModel implements Configurable, Iterable<MatrixSlice> {
       double topicSum = topicSums.get(x);
       // get p(topic x | term a) distribution to update
       Vector termTopicRow = termTopicDist.viewRow(x);
+      // cache factor which is the same for all terms, for this fixed topic.
+      double topicMult = (topicWeight + alpha) / (topicSum + eta * numTerms);
 
       // for each term a in document i with non-zero weight
       Iterator<Vector.Element> it = document.iterateNonZero();
@@ -382,7 +384,7 @@ public class TopicModel implements Configurable, Iterable<MatrixSlice> {
         int termIndex = e.index();
 
         // calc un-normalized p(topic x | term a, document i)
-        double termTopicLikelihood = (topicTermRow.get(termIndex) + eta) * (topicWeight + alpha) / (topicSum + eta * numTerms);
+        double termTopicLikelihood = (topicTermRow.get(termIndex) + eta) * topicMult;
         termTopicRow.set(termIndex, termTopicLikelihood);
       }
     }

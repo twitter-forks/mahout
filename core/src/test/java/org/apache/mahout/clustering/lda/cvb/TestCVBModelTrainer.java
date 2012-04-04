@@ -198,7 +198,9 @@ public class TestCVBModelTrainer extends MahoutTestCase {
     Path topicModelStateTempPath = getTestTempDirPath("topicTemp");
     Path outputPath = new Path(getTestTempDirPath(), "finalOutput");
     int numIterations = 10;
-    CVBConfig cvbConfig = new CVBConfig().setAlpha(ALPHA).setEta(ETA).setNumTopics(numGeneratingTopics)
+    int numTopics = numGeneratingTopics - 2;
+    CVBConfig cvbConfig = new CVBConfig().setAlpha(ALPHA).setEta(ETA)
+          .setNumTopics(numTopics)
           .setBackfillPerplexity(false).setConvergenceDelta(0).setDictionaryPath(null)
           .setModelTempPath(topicModelStateTempPath).setTestFraction(0.2f).setNumTerms(numTerms)
           .setMaxIterations(numIterations).setInputPath(sampleCorpusPath).setNumTrainThreads(1)
@@ -213,7 +215,7 @@ public class TestCVBModelTrainer extends MahoutTestCase {
       modelParts.add(fileStatus.getPath());
     }
     Pair<Matrix, Vector> model = TopicModel.loadModel(conf, modelParts.toArray(new Path[0]));
-    for(int topic = 0; topic < numGeneratingTopics; topic++) {
+    for(int topic = 0; topic < numTopics; topic++) {
       Vector topicDist = model.getFirst().viewRow(topic);
       int term = mostProminentFeature(topicDist);
       int expectedTopicForTerm = expectedTopicForTerm(matrix, term);
