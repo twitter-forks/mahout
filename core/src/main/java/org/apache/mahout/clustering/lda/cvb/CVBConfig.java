@@ -365,6 +365,7 @@ public class CVBConfig {
   public void check() {
     checkPositive(NUM_TOPICS_PARAM, numTopics);
     checkPositive(NUM_TERMS_PARAM, numTerms);
+    checkGreater(NUM_TERMS_PARAM, numTerms, numTopics);
     checkPositive(DOC_TOPIC_SMOOTHING_PARAM, alpha);
     checkPositive(TERM_TOPIC_SMOOTHING_PARAM, eta);
     checkPositive(RANDOM_SEED_PARAM, randomSeed);
@@ -378,11 +379,13 @@ public class CVBConfig {
   }
 
   protected void checkGreater(String param, Number value, Number threshold) {
-    Preconditions.checkArgument(value.doubleValue() > threshold.doubleValue(), "Expecting %s > %d but found %s", param, threshold, value);
+    Preconditions.checkArgument(value.doubleValue() > threshold.doubleValue(),
+                                "Expecting %s > %d but found %s", param, threshold, value);
   }
 
   protected void checkGreaterOrEqual(String param, Number value, Number threshold) {
-    Preconditions.checkArgument(value.doubleValue() >= threshold.doubleValue(), "Expecting %s >= %d but found %s", param, threshold, value);
+    Preconditions.checkArgument(value.doubleValue() >= threshold.doubleValue(),
+                                "Expecting %s >= %d but found %s", param, threshold, value);
   }
 
   protected void checkPositive(String param, Number value) {
