@@ -34,7 +34,8 @@ public class TopicModelUtils {
    *          those topics whose remaining term count is non-zero.
    * @return sparsified version of topicTermCounts.
    */
-  public Matrix sparsifyTopicTermCounts(Matrix topicTermCounts, double threshold) {
+  public static Matrix sparsifyTopicTermCounts(Matrix topicTermCounts,
+      double threshold) {
     Preconditions.checkNotNull(topicTermCounts);
     Preconditions.checkArgument(0 < threshold,
         "Expected threshold > 0 but found %s", threshold);
