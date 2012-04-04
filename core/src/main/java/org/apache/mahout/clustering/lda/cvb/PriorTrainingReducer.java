@@ -54,6 +54,7 @@ public class PriorTrainingReducer extends MapReduceBase
   private ModelTrainer modelTrainer;
   private int maxIters;
   private int numTopics;
+  private int numTerms;
   private boolean onlyLabeledDocs;
   private MultipleOutputs multipleOutputs;
   private Reporter reporter;
@@ -79,7 +80,7 @@ public class PriorTrainingReducer extends MapReduceBase
       double eta = c.getEta();
       double alpha = c.getAlpha();
       numTopics = c.getNumTopics();
-      int numTerms = c.getNumTerms();
+      numTerms = c.getNumTerms();
       int numUpdateThreads = c.getNumUpdateThreads();
       int numTrainThreads = c.getNumTrainThreads();
       maxIters = c.getMaxItersPerDoc();
@@ -127,10 +128,15 @@ public class PriorTrainingReducer extends MapReduceBase
     Vector document = null;
     while(vectors.hasNext()) {
       VectorWritable v = vectors.next();
-      if(v.get().size() == numTopics) {
-        topicVector = v.get();
-      } else {
+      /*
+       *  NOTE: we are susceptible to the pathological case of numTerms == numTopics (which should
+       *  never happen, as that would generate a horrible topic model), because we identify which
+       *  vector is the "prior" and which is the document by document.size() == numTerms
+       */
+      if(v.get().size() == numTerms) {
         document = v.get();
+      } else {
+        topicVector = v.get();
       }
     }
     if(document == null) {
