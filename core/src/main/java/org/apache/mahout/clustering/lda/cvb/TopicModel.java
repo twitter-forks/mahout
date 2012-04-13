@@ -153,6 +153,12 @@ public class TopicModel implements Configurable, Iterable<MatrixSlice> {
   }
 
   private void initializeThreadPool() {
+    // avoid initializing thread pool if client has specified less than one thread
+    if (numThreads < 1) {
+      log.info("Skipping thread pool initialization");
+      return;
+    }
+    log.info("Initializing thread pool with {} threads", numThreads);
     ThreadPoolExecutor threadPool = new ThreadPoolExecutor(numThreads, numThreads, 0, TimeUnit.SECONDS,
                                                            new ArrayBlockingQueue<Runnable>(numThreads * 10));
     threadPool.allowCoreThreadTimeOut(false);
