@@ -16,6 +16,7 @@
  */
 package org.apache.mahout.clustering.lda.cvb;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
@@ -153,6 +154,12 @@ public class TopicModel implements Configurable, Iterable<MatrixSlice> {
   }
 
   private void initializeThreadPool() {
+    // avoid initializing thread pool if client has specified less than one thread
+    if (numThreads < 1) {
+      log.info("Skipping thread pool initialization");
+      return;
+    }
+    log.info("Initializing thread pool with {} threads", numThreads);
     ThreadPoolExecutor threadPool = new ThreadPoolExecutor(numThreads, numThreads, 0, TimeUnit.SECONDS,
                                                            new ArrayBlockingQueue<Runnable>(numThreads * 10));
     threadPool.allowCoreThreadTimeOut(false);
@@ -323,6 +330,8 @@ public class TopicModel implements Configurable, Iterable<MatrixSlice> {
   }
 
   public void update(Matrix docTopicCounts) {
+    Preconditions.checkState(updaters.length > 0,
+        "Unable to update model; No threads requested during TopicModel instantiation");
     for(int x = 0; x < numTopics; x++) {
       updaters[x % updaters.length].update(x, docTopicCounts.viewRow(x));
     }
