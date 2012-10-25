@@ -18,6 +18,7 @@
 package org.apache.mahout.utils.vectors;
 
 import com.google.common.base.Function;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -82,6 +83,8 @@ public final class VectorHelper {
   }
 
   public static List<Pair<Integer, Double>> topEntries(Vector vector, int maxEntries) {
+    Preconditions.checkNotNull(vector, "vector is null");
+    Preconditions.checkArgument(0 < maxEntries, "Expected maxEntries > 0 but found value %s", maxEntries);
     NavigableSet<Pair<Integer,Double>> queue = Sets.newTreeSet(new Comparator<Pair<Integer,Double>>() {
       @Override
       public int compare(Pair<Integer, Double> a, Pair<Integer, Double> b) {
