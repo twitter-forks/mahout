@@ -82,6 +82,12 @@ public class SequentialAccessSparseVector extends AbstractVector {
     }    
   }
 
+  public static SequentialAccessSparseVector fromPreSorted(int[] indexes,
+    double[] values, int cardinality) {
+    return new SequentialAccessSparseVector(cardinality,
+      new OrderedIntDoubleMapping(indexes, values, indexes.length));
+  }
+
   // Sorts a RandomAccessSparseVectors Elements before adding them to this
   private int copySortedRandomAccessSparseVector(Vector other) {
     int elementCount = other.getNumNondefaultElements();
