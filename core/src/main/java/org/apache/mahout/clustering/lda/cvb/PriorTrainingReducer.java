@@ -25,6 +25,7 @@ import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.lib.MultipleOutputs;
 import org.apache.hadoop.mapreduce.Counter;
+import org.apache.mahout.common.RandomUtils;
 import org.apache.mahout.math.DenseMatrix;
 import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.Matrix;
@@ -96,8 +97,9 @@ public class PriorTrainingReducer extends MapReduceBase
         log.info("No model files found, starting with uniform p(term|topic) prior");
         Matrix m = new DenseMatrix(numTopics, numTerms);
         m.assign(1.0 / numTerms);
-        readModel = new TopicModel(m, new DenseVector(numTopics).assign(1.0), eta, alpha, null,
-            numTrainThreads, modelWeight);
+        readModel = new TopicModel(numTopics, numTerms, eta, alpha,
+                                   RandomUtils.getRandom(c.getRandomSeed()), null,
+                                   numTrainThreads, modelWeight);
       }
 
       log.info("Initializing write model");
