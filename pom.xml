@@ -607,7 +607,7 @@
         <plugin>
           <groupId>org.apache.mahout</groupId>
           <artifactId>mahout-collection-codegen-plugin</artifactId>
-          <version>0.8-T1</version>
+          <version>1.0</version>
         </plugin>
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
