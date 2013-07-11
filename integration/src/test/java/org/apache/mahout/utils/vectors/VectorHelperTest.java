@@ -17,13 +17,40 @@
 
 package org.apache.mahout.utils.vectors;
 
-import com.google.common.collect.Iterables;
+import com.google.common.collect.ImmutableList;
+
+import org.apache.mahout.common.Pair;
 import org.apache.mahout.math.SequentialAccessSparseVector;
 import org.apache.mahout.math.Vector;
 import org.apache.mahout.utils.MahoutTestCase;
 import org.junit.Test;
 
 public final class VectorHelperTest extends MahoutTestCase {
+  @Test
+  public void testTopEntries() {
+    Vector v = new SequentialAccessSparseVector(10);
+    v.set(2, 3.1);
+    v.set(4, 1.0);
+    v.set(6, 8.1);
+    v.set(7, -100);
+    v.set(9, 12.2);
+    assertEquals(ImmutableList.of(Pair.of(9, 12.2), Pair.of(6, 8.1), Pair.of(2, 3.1)),
+        VectorHelper.topEntries(v, 3));
+    assertEquals(ImmutableList.of(Pair.of(9, 12.2), Pair.of(6, 8.1)),
+        VectorHelper.topEntries(v, 2));
+    assertEquals(ImmutableList.of(Pair.of(9, 12.2)),
+        VectorHelper.topEntries(v, 1));
+  }
+
+  @Test(expected = NullPointerException.class)
+  public void testTopEntriesBad1() {
+    VectorHelper.topEntries(null, 1);
+  }
+
+  @Test(expected = IllegalArgumentException.class)
+  public void testTopEntriesBad2() {
+    VectorHelper.topEntries(new SequentialAccessSparseVector(10), 0);
+  }
 
   @Test
   public void testJsonFormatting() throws Exception {
@@ -42,46 +69,5 @@ public final class VectorHelperTest extends MahoutTestCase {
         VectorHelper.vectorToJson(v, dictionary, 3, true));
     assertEquals("unsorted form incorrect: ", "{two:3.1,four:1.0}",
         VectorHelper.vectorToJson(v, dictionary, 2, false));
-    assertEquals("sorted json form incorrect: ", "{nine:12.2,six:8.1,two:3.1,four:1.0}",
-        VectorHelper.vectorToJson(v, dictionary, 4, true));
-    assertEquals("sorted json form incorrect: ", "{nine:12.2,six:8.1,two:3.1,four:1.0,seven:-100.0}",
-        VectorHelper.vectorToJson(v, dictionary, 5, true));
-    assertEquals("sorted json form incorrect: ", "{nine:12.2,six:8.1}",
-        VectorHelper.vectorToJson(v, dictionary, 2, true));
-    assertEquals("unsorted form incorrect: ", "{two:3.1,four:1.0}",
-        VectorHelper.vectorToJson(v, dictionary, 2, false));
-  }
-
-  @Test
-  public void testTopEntries() throws Exception {
-    Vector v = new SequentialAccessSparseVector(10);
-    v.set(2, 3.1);
-    v.set(4, 1.0);
-    v.set(6, 8.1);
-    v.set(7, -100);
-    v.set(9, 12.2);
-    v.set(1, 0.0);
-    v.set(3, 0.0);
-    v.set(8, 2.7);
-    // check if sizeOFNonZeroElementsInVector = maxEntries
-    assertEquals(6, VectorHelper.topEntries(v, 6).size());
-    // check if sizeOfNonZeroElementsInVector < maxEntries
-    assertTrue(VectorHelper.topEntries(v, 9).size() < 9);
-    // check if sizeOfNonZeroElementsInVector > maxEntries
-    assertTrue(VectorHelper.topEntries(v, 5).size() < Iterables.size(v.nonZeroes()));
-  }
-
-  @Test
-  public void testTopEntriesWhenAllZeros() throws Exception {
-    Vector v = new SequentialAccessSparseVector(10);
-    v.set(2, 0.0);
-    v.set(4, 0.0);
-    v.set(6, 0.0);
-    v.set(7, 0);
-    v.set(9, 0.0);
-    v.set(1, 0.0);
-    v.set(3, 0.0);
-    v.set(8, 0.0);
-    assertEquals(0, VectorHelper.topEntries(v, 6).size());
   }
 }
