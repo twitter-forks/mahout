@@ -1,0 +1,13 @@
+#!/bin/bash
+#
+# The Mahout console script
+#
+# Environment Variables
+#
+# JRUBY_HOME	path to jruby's install home
+# MAHOUT_HOME	most likely ../
+# MAHOUT_JOB    path to core or examples -job.jar - possibly in MAHOUT_HOME/mahout-examples-$VERSION-job.jar
+# HADOOP_JAR    path to hadoop-core jar
+# MAHOUT_CONSOLE_HEAP	optional heapsize args for the jruby console
+
+java $MAHOUT_CONSOLE_HEAP -cp $JRUBY_HOME/lib/jruby.jar -Djruby.home=$JRUBY_HOME -Djruby.lib=$JRUBY_HOME/lib org.jruby.Main --1.9 $MAHOUT_HOME/bin/mahout_console.rb
